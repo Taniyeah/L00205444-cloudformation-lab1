@@ -10,9 +10,7 @@ Resources:
     # This tells CloudFormation to create an S3 bucket.
     Type: 'AWS::S3::Bucket'
     Properties:
-      # Only the bucket owner gets access.
-      # The public access block below is what keeps the bucket private
-      AccessControl: Private
+     
 
       # I block all public access so the bucket can never be made public by mistake.
       # The web service will read the files privately instead. This is for security.

@@ -1,45 +1,102 @@
-# Lab 1a: private S3 bucket for my static website file
-# I based this on the Techielass tutorial "Create an S3 Bucket using AWS CloudFormation".
+# Lab 1a: private S3 bucket for my static website and a web server for hosting
+# I based this on the Techielass tutorial "Create an S3 Bucket using AWS CloudFormation"
+# I used the AWS CloudFormation "Getting started" walkthrough for the web server
+
 AWSTemplateFormatVersion: '2010-09-09'
-# The description shows in the CloudFormation console so I can tell my template apart.
-Description: L00205444 Taniya Offergeld - Lab 1a. Private S3 bucket for the website.
+# The description shows in the CloudFormation console
+Description: L00205444 Taniya Offergeld - Lab 1a. Private S3 bucket and web server to host simple website.
+
+Parameters:
+  # I use a parameter for the image , there is no fixed an AMI id
+  # AWS points at the latest Amazon Linux 2023 image
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 image
+
+  # A small instance type is enough for one static page
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t2.micro
+    Description: Size of the web server
+
+  # Who can reach the website on port 80
+  # 0.0.0.0/0 means everyone, which is a public website 
+  AllowedCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: IP range allowed to open the website
 
 Resources:
-  # This is the name I use to refer to the bucket in this template.
   S3Bucket:
-    # This tells CloudFormation to create an S3 bucket.
+    # This tells CloudFormation to create an S3 bucket
     Type: 'AWS::S3::Bucket'
     Properties:
-     
-
-      # I block all public access so the bucket can never be made public by mistake.
-      # The web service will read the files privately instead. This is for security.
+      # I block all public access so the bucket can never be made public by mistake
       PublicAccessBlockConfiguration:
-        # Reject any new public ACLs.
+        # Reject any new public ACLs
         BlockPublicAcls: true
-        # Reject any bucket policy that gives public access.
+        # Reject any bucket policy that gives public access
         BlockPublicPolicy: true
-        # Ignore any public ACLs that already exist.
+        # Ignore any public ACLs that already exist
         IgnorePublicAcls: true
-        # Limit access to AWS services and authorised users only.
+        # Limit access to AWS services and authorised users only
         RestrictPublicBuckets: true
 
-      # I encrypt the files in the bucket. 
+      # I encrypt the files in the bucket
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               # AES256 uses S3-managed keys. It is free and easy to set up.
               SSEAlgorithm: AES256
 
-      # Versioning keeps old copies of my files.
+      # Versioning is switched on
       # If I upload a bad file or delete one by mistake, I can restore it.
       VersioningConfiguration:
         Status: Enabled
+
+  # Firewall for the web server. It only lets web traffic in
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP to the web server
+      SecurityGroupIngress:
+        # Port 80 is HTTP. I open nothing else (no SSH), which is least privilege
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref AllowedCidr
+
+  # The web server. It installs Apache and shows my page
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      SecurityGroupIds:
+        - !Ref WebServerSecurityGroup
+      # This script runs once when the server first starts.
+      UserData: !Base64 |
+        #!/bin/bash
+        yum update -y
+        yum install -y httpd
+        systemctl start httpd
+        systemctl enable httpd
+        echo "<html><body><h1>L00205444 - Taniya Offergeld</h1></body></html>" > /var/www/html/index.html
 
 Outputs:
   # Outputs are values CloudFormation prints after the stack is created.
   S3Bucket:
     Description: Bucket created using this template.
-    # !Ref gives me the bucket name. I need it to upload index.html
-    # and later to let the web service read the bucket.
     Value: !Ref S3Bucket
+
+  # The address I open in the browser.
+  WebsiteURL:
+    Description: Website URL
+    Value: !Join
+      - ''
+      - - http://
+        - !GetAtt WebServer.PublicDnsName

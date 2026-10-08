@@ -1,0 +1,45 @@
+# Lab 1a: private S3 bucket for my static website file
+# I based this on the Techielass tutorial "Create an S3 Bucket using AWS CloudFormation".
+AWSTemplateFormatVersion: '2010-09-09'
+# The description shows in the CloudFormation console so I can tell my template apart.
+Description: L00205444 Taniya Offergeld - Lab 1a. Private S3 bucket for the website.
+
+Resources:
+  # This is the name I use to refer to the bucket in this template.
+  S3Bucket:
+    # This tells CloudFormation to create an S3 bucket.
+    Type: 'AWS::S3::Bucket'
+    Properties:
+     
+
+      # I block all public access so the bucket can never be made public by mistake.
+      # The web service will read the files privately instead. This is for security.
+      PublicAccessBlockConfiguration:
+        # Reject any new public ACLs.
+        BlockPublicAcls: true
+        # Reject any bucket policy that gives public access.
+        BlockPublicPolicy: true
+        # Ignore any public ACLs that already exist.
+        IgnorePublicAcls: true
+        # Limit access to AWS services and authorised users only.
+        RestrictPublicBuckets: true
+
+      # I encrypt the files in the bucket. 
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              # AES256 uses S3-managed keys. It is free and easy to set up.
+              SSEAlgorithm: AES256
+
+      # Versioning keeps old copies of my files.
+      # If I upload a bad file or delete one by mistake, I can restore it.
+      VersioningConfiguration:
+        Status: Enabled
+
+Outputs:
+  # Outputs are values CloudFormation prints after the stack is created.
+  S3Bucket:
+    Description: Bucket created using this template.
+    # !Ref gives me the bucket name. I need it to upload index.html
+    # and later to let the web service read the bucket.
+    Value: !Ref S3Bucket

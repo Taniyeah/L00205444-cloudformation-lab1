@@ -1,0 +1,53 @@
+# Lab 1a (S3 version): static website hosted directly from an S3 bucket
+# I based this on the Medium blog "Project S3 Static Website with CloudFormation" (Alan Le)
+AWSTemplateFormatVersion: '2010-09-09'
+Description: L00205444 Taniya Offergeld - Lab 1a Static website hosted on S3
+
+Resources:
+  # The bucket stores my static website and also does hosting
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Turns on hosting. index.html is the home page
+      # visitors get when mz student number when they open the website 
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      # S3 blocks public access by default, so we need to set it to false
+      # that anyone on the internet can then read the bucket.
+      PublicAccessBlockConfiguration:
+        # Allow a bucket policy give public access.
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # The bucket policy is the permission that lets visitors read the files
+  # Lets anyone on the internet read the files
+  # Reference: AWS::S3::BucketPolicy and the example policy on the AWS page
+  # "Setting permissions for website access".
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    # Which bucket the policy belongs to
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            # unique identifier for the policy statement, it helps in identifying the specific statement within the policy
+            Sid: PublicReadGetObject
+            # effect means allow rule
+            Effect: Allow
+            # Star(*) means that the policy allows access to anyone for public access.
+            Principal: '*'
+            # s3:GetObject means read a file, do not allow upload or delete
+            Action: s3:GetObject
+            # substitute MyS3Bucket for the actual name of the bucket
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
+
+Outputs:
+  # Name of the bucket, needed to upload index.html
+  BucketName:
+    Value: !Ref WebsiteBucket
+  # The address I open in the browser
+  WebsiteURL:
+    Value: !GetAtt WebsiteBucket.WebsiteURL

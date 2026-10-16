@@ -17,17 +17,20 @@ I keep each version as simple as possible and follow a tutorial first. Then I im
 
 | Part | Status |
 |---|---|
-| 1a, static website on S3 | Working, deployed and tested |
+| 1a, static website on S3 | Done, deployed and tested |
 | 1a, deploy script | Done |
-| 1a, improvements | Planned (see section 8) |
-| 1b, three tier architecture | Not started |
+| 1a, destroy script | Done, tested with a real delete and a rebuild |
+| 1b, three tier architecture | Starting next |
 | README write up | In progress |
+
+Part 1a is finished. Part 1b is next.
 
 ### README versions
 | Version | Branch | What it covers |
 |---|---|---|
 | v1 | docs/readme-v1-part-1a | Part 1a basics, deploy script, declarations so far |
-| v2 | docs/readme-v2-improvements | Part 1a improvements (planned) |
+| v1.1 | docs/readme-v1.1-formatting | Formatting fix |
+| v2 | docs/readme-v2-part-1a-final | Part 1a finished, destroy script, LLM use |
 | v3 | docs/readme-v3-three-tier | Part 1b three tier architecture (planned) |
 | v4 | docs/readme-v4-final | Best practice table, full prompt list, final screenshots (planned) |
 
@@ -39,7 +42,9 @@ I keep each version as simple as possible and follow a tutorial first. Then I im
 ├── CODE_OF_CONDUCT.md
 ├── LICENSE
 ├── src/website/index.html             the static page (L-number and name as header)
-├── scripts/deploy.sh                  deploys the stack and uploads the page
+├── scripts/
+│   ├── deploy.sh                      deploys the stack and uploads the page
+│   └── destroy.sh                     empties the bucket and deletes the stack
 ├── templates/
 │   ├── s3-website/s3-website.yaml     Part 1a, website hosted from S3 (main version)
 │   └── website/static-website.yaml    Part 1a, first attempt with EC2 and Apache
@@ -47,9 +52,6 @@ I keep each version as simple as possible and follow a tutorial first. Then I im
 ```
 
 ## 4. Part 1a: static website
-
-### How I read the brief
-The assignment says to store the static pages in an S3 bucket and to use a public facing web service to host the website. I read "public facing web service" as a service that serves the website to anyone on the internet. S3 static website hosting does that, so I used it for version 1. I plan to put CloudFront in front of a private bucket as an improvement, so S3 only stores the files and CloudFront is the public facing service.
 
 ### Version 1: the first attempt with EC2
 My first template (`templates/website/static-website.yaml`) creates a private S3 bucket, a security group that allows port 80 only, and an EC2 instance running Apache. I deployed it and the page loaded.
@@ -71,8 +73,6 @@ Browser  --HTTP-->  S3 website endpoint  -->  Bucket (index.html)
 
 ![Website hosted from S3](docs/images/s3-website.png)
 
-This version has two weaknesses. The bucket is public, and the website address only works over HTTP. I plan to fix both with CloudFront.
-
 ### How to deploy
 The region is eu-west-1 (Ireland). Run the script from the root of the repo:
 
@@ -83,16 +83,29 @@ The region is eu-west-1 (Ireland). Run the script from the root of the repo:
 The script validates the template, deploys the stack `lab1a-s3-website`, reads the bucket name from the stack outputs, uploads `index.html` and prints the website address. It uses the AWS CLI, so I log in first with `aws login`.
 
 ### How to delete
-I empty the bucket first, because a stack cannot delete a bucket that still has files in it.
-
 ```bash
-aws s3 rm s3://<BucketName> --recursive
-aws cloudformation delete-stack --stack-name lab1a-s3-website --region eu-west-1
+./scripts/destroy.sh
 ```
+
+The script is based on Dhandala (2026). It does these steps:
+1. Checks that the stack exists. If it does not, it says so and stops.
+2. Checks that termination protection is off.
+3. Shows the resources that will be deleted and asks me to type `yes`.
+4. Empties the bucket, because a stack cannot delete a bucket that still has files in it.
+5. Deletes the stack and waits until it is gone.
+
+I changed three things from the article. I empty the bucket first, I read the bucket name from the stack outputs like in `deploy.sh`, and I left out the export check because my stack has no exports.
+
+### Testing the scripts
+1. I ran `destroy.sh` and typed anything but `yes`. The script cancelled and the website still loaded.
+2. I ran `destroy.sh` and typed `yes`. The bucket was emptied and the stack was deleted.
+3. I ran `deploy.sh` again. The site came back from the repo with one command, on a new bucket and a new address, and the header showed my L-number and name.
+
+![Output of destroy.sh](docs/images/destroy-script.png)
 
 ## 5. Part 1b: three tier architecture
 
-Not started yet. I will add this section when I build it.
+Starting next. I will add this section when I build it.
 
 ## 6. Branches and pull requests
 
@@ -106,6 +119,9 @@ Not started yet. I will add this section when I build it.
 | feature/s3-website-hosting | Website hosted from S3 (version 2) |
 | feature/deploy-script | Deploy script |
 | docs/readme-v1-part-1a | README version 1 |
+| docs/readme-v1.1-formatting | README formatting fix |
+| feature/destroy-script | Destroy script and screenshot of the test |
+| docs/readme-v2-part-1a-final | README version 2 |
 
 I do not delete merged branches, so the history stays visible.
 
@@ -114,19 +130,19 @@ I do not delete merged branches, so the history stays visible.
 - Every template and script has comments that explain what each part does and where it came from.
 - The EC2 version uses parameters instead of fixed values, and opens port 80 only (no SSH).
 - The bucket policy in version 2 allows `s3:GetObject` only, so visitors can read files but not change them.
+- Both scripts stop on the first error (`set -e`) and do not hide the AWS error messages.
+- The destroy script shows what it will delete and asks before it does anything.
+- The whole site can be deleted and rebuilt from the repo with two commands.
 - I check the templates with cfn-lint and work in VS Code.
 - I use feature branches and small pull requests.
 
-I will add a full table for security, scalability and performance when the improvements are done.
+I will add a full table for security, scalability and performance when Part 1b is done.
 
 ## 8. Still to do
 
-- [ ] Fix the comments in `s3-website.yaml`
-- [ ] 1a improvements, one branch each: tags, versioning and encryption, lint check on every pull request, CloudFront with HTTPS and a private bucket
 - [ ] Part 1b: network, web tier, application tier, database tier, chained security groups
 - [ ] 1b improvements
-- [ ] Best practice table (security, scalability, performance)
-- [ ] Delete the AWS stacks when I am finished
+
 
 ## 9. Declarations
 
@@ -141,16 +157,17 @@ I will add a full table for security, scalability and performance when the impro
 | 1a, version 1 and 2 | AWS::S3::Bucket (Amazon Web Services, n.d.b) | Meaning of the bucket properties |
 | 1a, deploy script | Davra (2022) Deploy a website with AWS S3 + CloudFront using CloudFormation | The pattern of validating, deploying and then uploading the page |
 | 1a, deploy script | AWS CLI Command Reference, `cloudformation describe-stacks` (Amazon Web Services, n.d.d) | The `--query` and `--output text` options |
+| 1a, destroy script | Dhandala (2026) How to Delete CloudFormation Stacks Safely | The steps: check the stack, show what is deleted, ask, delete, wait |
 
 ### LLM use
-I used Claude (Anthropic) during this README.md and I declare it here as the brief asks.
-- It explained the assignment and the concepts, helped me compare tutorials
-- All commits and pull requests in this repository are made by me.
+I used Claude (Anthropic) during this lab, as the brief allows. It explained the assignment, helped me compare tutorials, and proposed first versions of the EC2 template, the comments, `deploy.sh`, `destroy.sh` and this README. I adjusted and tweaked the scripts and templates, tested them, edited the text, and made all commits and pull requests myself. The decisions were mine: I chose S3 hosting, picked the sources, decided what to keep and what to leave out (CloudFront and versioning), and planned the branches and pull requests.
 
 ### What I changed to go further than the tutorials
 - Added my L-number and name to the page and to the template descriptions.
 - Moved from EC2 and Apache to S3 hosting, so the bucket really stores the site.
 - Wrote a deploy script that reads the bucket name from the stack outputs, stops on any error and prints the website address.
+- Wrote a destroy script that empties the bucket first, asks for confirmation and waits until the stack is gone.
+- Proved the rebuild: I deleted the whole site and brought it back from the repo with one command.
 - More changes will be listed here as I merge them.
 
 ## 10. References
@@ -164,6 +181,8 @@ Amazon Web Services (n.d.c) *Walkthrough: Creating your first stack*. Available 
 Amazon Web Services (n.d.d) *describe-stacks*. AWS CLI Command Reference. Available at: https://docs.aws.amazon.com/cli/latest/reference/cloudformation/describe-stacks.html (Accessed: 15 October 2026).
 
 Davra, N. (2022) *Deploy a website with AWS S3 + CloudFront using CloudFormation*. Canopas. Available at: https://canopas.com/deploy-a-website-with-aws-s3-cloudfront-using-cloudformation-c2199dc6c435 (Accessed: 15 October 2026).
+
+Dhandala (2026) *How to Delete CloudFormation Stacks Safely*. OneUptime. Available at: https://oneuptime.com/blog/post/2026-02-12-delete-cloudformation-stacks-safely/view (Accessed: 16 October 2026).
 
 Le, A. (2025) *Project: S3 Static Website with CloudFormation*. Medium. Available at: https://medium.com/@elnala24/project-s3-static-website-with-cloudformation-2253652b7405 (Accessed: 9 October 2026).
 

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: L00205444 Taniya Offergeld - Lab 1b three tier architecture (step 1, network)
+Description: L00205444 Taniya Offergeld - Lab 1b three tier architecture (network and security groups)
 
 # Based on: Sofowoke, N. (2024) Building and Deploying a 3-tier
 # Architecture with AWS CloudFormation. Medium.
@@ -9,7 +9,12 @@ Description: L00205444 Taniya Offergeld - Lab 1b three tier architecture (step 1
 #   the internet
 # - I take the availability zones from the region instead of fixing them
 #   to us-east-1, because I work in eu-west-1
-
+# - I left out the bastion host and its security group, so the app
+#   security group has no SSH rule
+#
+# The security group rules are the same as in the blog. Ports 22 and 3306
+# on the web group are open to the internet, which is known a weakness. I
+#
 
 Resources:
 
@@ -133,6 +138,56 @@ Resources:
     Properties:
       SubnetId: !Ref DbSubnet2
       RouteTableId: !Ref PrivateRouteTable
+
+  # Security group for the web tier (same rules as the blog)
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web tier security group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.10.0.0/16
+
+  # Security group for the app tier (same as the blog, without the
+  # bastion SSH rule)
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App tier security group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  # Security group for the database tier: MySQL from the web group (same
+  # as the blog)
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database tier security group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref WebSecurityGroup
 
 Outputs:
   VpcId:

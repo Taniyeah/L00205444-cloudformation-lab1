@@ -1,20 +1,56 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: L00205444 Taniya Offergeld - Lab 1b three tier architecture (network and security groups)
+Description: L00205444 Taniya Offergeld - Lab 1b three tier architecture (network, security groups and the three tiers)
 
 # Based on: Sofowoke, N. (2024) Building and Deploying a 3-tier
 # Architecture with AWS CloudFormation. Medium.
 #
-# What I changed from the blog (step 1):
+# What I changed from the blog:
 # - I left out the NAT gateway, so the private subnets have no route to
 #   the internet
 # - I take the availability zones from the region instead of fixing them
 #   to us-east-1, because I work in eu-west-1
 # - I left out the bastion host and its security group, so the app
 #   security group has no SSH rule
+# - web tier: one web server instead of the blog's auto scaling group and
+#   load balancer, to keep it simple
+# - I use a current Amazon Linux 2023 image for eu-west-1, because the
+#   blog's image only exists in us-east-1, and dnf instead of
+#   amazon-linux-extras
+# - the page shows my L-number and name
+# - t3.micro instead of t2.micro, because t2.micro is not free tier
+#   eligible on my account
+# - app tier: one plain server in a private subnet instead of the blog's
+#   second auto scaling group, because there is no NAT gateway to install
+#   software
+# - database: a smaller instance size (db.t3.micro instead of
+#   db.m6gd.large), a VPC security group instead of the old DB security
+#   group and the MySQL 8.0 default minor version
+# - the database password is a parameter with a throwaway default, so I do
+#   not have to type it. This is a weakness, because the password is in the
+#   repo. 
 #
 # The security group rules are the same as in the blog. Ports 22 and 3306
-# on the web group are open to the internet, which is known a weakness. I
+# on the web group are open to the internet, which is a weakness. 
 #
+
+Parameters:
+  # Latest Amazon Linux 2023 image for this region, read from AWS
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+  # Database login. This is a throwaway password for this lab database only.
+  # It is in the repo on purpose, so the stack deploys without a prompt. I
+  # delete the database after testing and I do not use this password anywhere
+  # else.
+  MasterUsername:
+    Type: String
+    Default: admin
+
+  MasterUserPassword:
+    Type: String
+    NoEcho: true
+    Default: 4Wt6zR2emdXarHtd
 
 Resources:
 
@@ -189,7 +225,65 @@ Resources:
           ToPort: 3306
           SourceSecurityGroupId: !Ref WebSecurityGroup
 
+  # Web tier: one web server in a public subnet, with the web security group
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t3.micro
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      # Start up script: install Apache and write the page
+      UserData: !Base64 |
+        #!/bin/bash
+        dnf install -y httpd
+        echo "<h1>L00205444 - Taniya Offergeld</h1><p>Web tier</p>" > /var/www/html/index.html
+        systemctl enable --now httpd
+
+  # App tier: one plain server in a private subnet, with the app security group
+  AppServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t3.micro
+      SubnetId: !Ref AppSubnet1
+      SecurityGroupIds:
+        - !Ref AppSecurityGroup
+
+  # Database tier: the database lives in the two database subnets
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Database subnets
+      SubnetIds:
+        - !Ref DbSubnet1
+        - !Ref DbSubnet2
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: mysql
+      EngineVersion: '8.0'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterUserPassword
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DbSecurityGroup
+      MultiAZ: false
+
 Outputs:
+  WebsiteURL:
+    Description: Address of the web tier
+    Value: !Sub http://${WebServer.PublicDnsName}
   VpcId:
     Description: ID of the VPC
     Value: !Ref VPC
+  DatabaseEndpoint:
+    Description: Address of the database
+    Value: !GetAtt Database.Endpoint.Address
+  AppServerPrivateIp:
+    Description: Private address of the app server
+    Value: !GetAtt AppServer.PrivateIp

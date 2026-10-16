@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: L00205444 Taniya Offergeld - Lab 1b three tier architecture (step 1, network)
+
+# Based on: Sofowoke, N. (2024) Building and Deploying a 3-tier
+# Architecture with AWS CloudFormation. Medium.
+#
+# What I changed from the blog (step 1):
+# - I left out the NAT gateway, so the private subnets have no route to
+#   the internet
+# - I take the availability zones from the region instead of fixing them
+#   to us-east-1, because I work in eu-west-1
+
+
+Resources:
+
+  # The private network for all three tiers
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  # Web tier subnets: public, in two availability zones
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.10.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.10.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  # Application tier subnets: private
+  AppSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.10.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  AppSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.10.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+  # Database tier subnets: private (RDS needs two availability zones)
+  DbSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.10.5.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  DbSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.10.6.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+  # The door to the internet for the public subnets
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public route table: all outside traffic goes to the internet gateway
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Private route table: no route to the internet (no NAT gateway)
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  AppSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  AppSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  DbSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DbSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  DbSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DbSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+Outputs:
+  VpcId:
+    Description: ID of the VPC
+    Value: !Ref VPC

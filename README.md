@@ -268,13 +268,13 @@ I do not delete merged branches, so the history stays visible.
 ## 8. Best practice (Part B)
 
 ### What I did
-- Every template and script has comments that explain what each part does and where it came from.
-- Both Part 1b scripts stop on the first error (`set -euo pipefail`) and do not hide the AWS error messages.
-- The destroy scripts ask before they delete anything.
-- Both setups can be deleted and rebuilt from the repo with one command each.
-- The database group only accepts traffic from the web group.
-- The three tiers are built in one template that I added to in small steps, so each pull request shows one change.
-- I use feature branches and small pull requests, and I do not delete merged branches.
+- Every template and script has comments that explain what each part does and where it came from
+- Both Part 1b scripts stop on the first error (`set -euo pipefail`) and do not hide the AWS error messages
+- The destroy scripts ask before they delete anything
+- Both setups can be deleted and rebuilt from the repo with one command each
+- The database group only accepts traffic from the web group
+- The three tiers are built in one template that I added to in small steps, so each pull request shows one change
+- I use feature branches and small pull requests 
 
 
 ### Power tools
@@ -300,7 +300,15 @@ I used the AWS CLI (`validate-template` in both deploy scripts) and git with Git
 | 1b | Sofowoke (2024) Building and Deploying a 3-tier Architecture with AWS CloudFormation | Base for the whole template: IP ranges, subnet layout, security group rules |
 
 ### LLM use
-I used Claude (Anthropic) during this lab, as the brief allows. It explained the assignment and helped me compare/evaluate tutorials. Claude helped me on feedback for my first versions of the EC2 template, the three tier template, `deploy.sh`, `destroy.sh`, `deploy-3-tier.sh`, `destroy-3-tier.sh` and this README. I adjusted and tweaked the scripts and templates, tested them, edited the text and made all commits and pull requests myself. The decisions were mine: I chose S3 hosting, picked the sources, decided what to keep and what to leave out (CloudFront and versioning). I chose the blog for Part 1b and planned the branches and pull requests. The idea to create destroy and deploy scripts were mine.
+I used Claude (Anthropic) during this lab, as the brief allows. I did not take the first answer and paste it. I worked in iterartive rounds and I questioned the answers and went back to refine them. Claude explained the assignment and helped me compare/evaluate tutorials. Claude helped me on feedback for my first versions of the EC2 template, the three tier template, `deploy.sh`, `destroy.sh`, `deploy-3-tier.sh`, `destroy-3-tier.sh` and this README. I adjusted and tweaked the scripts and templates, tested them, edited the text and made all commits and pull requests myself. The decisions were mine: I chose S3 hosting, picked the sources, decided what to keep and what to leave out (CloudFront and versioning). I chose the blog for Part 1b and planned the branches and pull requests. The idea to create destroy and deploy scripts were mine. When my first deploys failed, the first explanation I got was not the real cause. I read the stack events in AWS, found that `t2.micro` was not free tier eligible on my account, and changed it to `t3.micro`. After that I asked Claude to help adjust the template.
+
+### Selected prompts
+
+1. > Find five public GitHub repositories that build a three tier architecture (web, application and database tier) with CloudFormation. For each one, summarise how it is structured and what it does well or badly, for example security groups, private subnets, secrets handling, comments and documentation. Then compare my repository, L00205444-cloudformation-lab1, against them and tell me where mine is stronger and where it is weaker.
+
+2. > I am considering using this blog as the base for Part 1b of my assignment and citing it: https://medium.com/@nifemi.sofowoke/building-and-deploying-a-3-tier-architecture-with-aws-cloudformation-415f198c1cda. Using the CloudFormation Lab brief, list the pros and cons of using this blog, and explain how well it meets each requirement of 1b. Say what I would need to change or add to go beyond a tutorial.
+
+3. > Review the template in this blog for consistency across the web, application and database tiers. For each tier, list its subnets, security group, what it allows in and out, and what it runs. Point out anywhere the tiers are treated differently or the design does not match what the blog describes, and suggest how to make them consistent.
 
 ### What I changed to go further than the tutorials
 - Added my L-number and name to the page and to the template descriptions.
